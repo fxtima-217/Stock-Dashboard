@@ -5,58 +5,114 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta
       name="description"
-      content="A beginner-friendly stock dashboard powered by Yahoo Finance data."
+      content="A modern stock dashboard powered by Yahoo Finance market data."
     />
     <title>Stock Dashboard</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap"
       rel="stylesheet"
     />
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
     <header class="site-header">
-      <a class="brand" href="#" aria-label="Stock Dashboard home">
-        <span class="brand-icon" aria-hidden="true">↗</span>
-        Stock Dashboard
-      </a>
+      <nav class="navigation" aria-label="Main navigation">
+        <a class="brand" href="#dashboard" aria-label="Stock Dashboard home">
+          <span class="brand-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" focusable="false">
+              <path d="M5 16.5 10 11l3.5 3.5L19 8" />
+              <path d="M14.5 8H19v4.5" />
+            </svg>
+          </span>
+          <span>Stock<span class="brand-accent">.</span></span>
+        </a>
+
+        <div class="nav-links">
+          <a href="#dashboard">Dashboard</a>
+          <a href="#markets">Markets</a>
+          <a href="#movers">Movers</a>
+        </div>
+
+        <button
+          id="theme-button"
+          class="theme-button"
+          type="button"
+          aria-label="Switch to light theme"
+          title="Switch theme"
+        >
+          <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+            <path d="M20.5 14.1A7 7 0 0 1 9.9 3.5 8.5 8.5 0 1 0 20.5 14Z" />
+          </svg>
+        </button>
+      </nav>
     </header>
 
-    <main>
+    <main id="dashboard">
       <section class="hero" aria-labelledby="page-title">
-        <p class="eyebrow">MARKET SNAPSHOT</p>
-        <h1 id="page-title">Follow the market.<br /><span>Simply.</span></h1>
-        <p class="hero-copy">
-          Search for a stock symbol to see its latest price and daily movement.
-        </p>
+        <div class="hero-content">
+          <p class="eyebrow">REAL MARKETS. REAL DATA. CLEAR MOVES.</p>
+          <h1 id="page-title">Follow the market.<br /><span>Simply.</span></h1>
+          <p class="hero-copy">
+            Track major markets, discover daily movers, and explore price history—all in one
+            focused dashboard.
+          </p>
 
-        <form class="search-form" id="search-form" role="search">
-          <label class="sr-only" for="ticker-input">Stock ticker</label>
-          <span class="search-icon" aria-hidden="true">⌕</span>
-          <input
-            id="ticker-input"
-            name="ticker"
-            type="text"
-            placeholder="Search a ticker, e.g. AAPL"
-            autocomplete="off"
-            spellcheck="false"
-            maxlength="12"
-            required
-          />
-          <button type="submit">Search</button>
-        </form>
-        <p class="search-hint">Press Enter or select Search</p>
+          <form class="search-form" id="search-form" role="search">
+            <label class="sr-only" for="ticker-input">Stock ticker</label>
+            <span class="search-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" focusable="false">
+                <circle cx="11" cy="11" r="6" />
+                <path d="m16 16 4 4" />
+              </svg>
+            </span>
+            <input
+              id="ticker-input"
+              name="ticker"
+              type="text"
+              placeholder="Search a ticker, e.g. AAPL"
+              autocomplete="off"
+              spellcheck="false"
+              maxlength="12"
+              required
+            />
+            <button type="submit">Search market</button>
+          </form>
+          <p class="search-hint">Enter a Yahoo Finance ticker symbol</p>
+        </div>
+
+        <div class="hero-visual" aria-hidden="true">
+          <div class="visual-orbit orbit-one"></div>
+          <div class="visual-orbit orbit-two"></div>
+          <div class="visual-grid"></div>
+          <svg class="hero-chart" viewBox="0 0 560 320" preserveAspectRatio="none">
+            <defs>
+              <linearGradient id="hero-line" x1="0" x2="1">
+                <stop offset="0" stop-color="#2b9870" stop-opacity="0.15" />
+                <stop offset="1" stop-color="#6ce0a8" />
+              </linearGradient>
+              <linearGradient id="hero-area" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0" stop-color="#36ad7b" stop-opacity="0.22" />
+                <stop offset="1" stop-color="#36ad7b" stop-opacity="0" />
+              </linearGradient>
+            </defs>
+            <path class="hero-area" d="M0 272 C62 250 80 194 140 216 S221 242 278 174 362 208 410 128 487 113 560 48 L560 320H0Z" />
+            <path class="hero-line" d="M0 272 C62 250 80 194 140 216 S221 242 278 174 362 208 410 128 487 113 560 48" />
+            <circle cx="560" cy="48" r="5" />
+          </svg>
+          <div class="visual-label visual-label-top"><span></span> Market pulse</div>
+          <div class="visual-label visual-label-bottom">Live overview</div>
+        </div>
       </section>
 
       <section
         id="search-section"
-        class="stocks-section search-section"
+        class="dashboard-section search-section"
         aria-labelledby="search-title"
         hidden
       >
-        <div class="section-heading">
+        <div class="section-heading compact-heading">
           <div>
             <p class="eyebrow">SEARCH RESULT</p>
             <h2 id="search-title">Stock found</h2>
@@ -65,23 +121,7 @@
         <div id="search-result" aria-live="polite"></div>
       </section>
 
-      <section
-        id="chart-section"
-        class="stocks-section chart-section"
-        aria-labelledby="chart-title"
-        hidden
-      >
-        <div class="section-heading chart-heading">
-          <div>
-            <p class="eyebrow">1 MONTH · DAILY</p>
-            <h2 id="chart-title">Price history</h2>
-            <p id="chart-company" class="chart-company"></p>
-          </div>
-        </div>
-        <div id="chart-container" class="chart-container" aria-live="polite"></div>
-      </section>
-
-      <section class="stocks-section" aria-labelledby="market-overview-title">
+      <section id="markets" class="dashboard-section" aria-labelledby="market-overview-title">
         <div class="section-heading">
           <div>
             <p class="eyebrow">GLOBAL MARKETS</p>
@@ -95,11 +135,73 @@
         </div>
       </section>
 
-      <section class="stocks-section" aria-labelledby="trending-title">
+      <section id="movers" class="dashboard-section" aria-labelledby="movers-title">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">TODAY'S ACTIVITY</p>
+            <h2 id="movers-title">Market Movers</h2>
+          </div>
+          <p>Ranked from a selection of widely followed stocks</p>
+        </div>
+
+        <div class="movers-layout">
+          <article class="mover-panel">
+            <div class="mover-panel-heading">
+              <span class="movement-dot positive-dot" aria-hidden="true"></span>
+              <h3>Top Gainers</h3>
+            </div>
+            <div id="gainers-list" class="mover-list" aria-live="polite">
+              <p class="status-message">Loading gainers…</p>
+            </div>
+          </article>
+
+          <article class="mover-panel">
+            <div class="mover-panel-heading">
+              <span class="movement-dot negative-dot" aria-hidden="true"></span>
+              <h3>Top Losers</h3>
+            </div>
+            <div id="losers-list" class="mover-list" aria-live="polite">
+              <p class="status-message">Loading losers…</p>
+            </div>
+          </article>
+        </div>
+      </section>
+
+      <section
+        id="chart-section"
+        class="dashboard-section featured-section"
+        aria-labelledby="featured-section-title"
+      >
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">DEEP DIVE</p>
+            <h2 id="featured-section-title">Featured Stock</h2>
+          </div>
+          <p>One month · Daily close</p>
+        </div>
+
+        <article class="featured-card">
+          <div class="featured-header">
+            <div>
+              <div class="featured-identity">
+                <h3 id="chart-title">AAPL</h3>
+                <span id="featured-change" class="change neutral">—</span>
+              </div>
+              <p id="chart-company" class="chart-company">Loading Apple market data…</p>
+            </div>
+            <p id="featured-price" class="featured-price">—</p>
+          </div>
+          <div id="chart-container" class="chart-container" aria-live="polite">
+            <p class="status-message">Loading AAPL chart…</p>
+          </div>
+        </article>
+      </section>
+
+      <section class="dashboard-section" aria-labelledby="trending-title">
         <div class="section-heading">
           <div>
             <p class="eyebrow">POPULAR NOW</p>
-            <h2 id="trending-title">Trending stocks</h2>
+            <h2 id="trending-title">Trending Stocks</h2>
           </div>
           <p>Latest available market prices</p>
         </div>
@@ -111,7 +213,8 @@
     </main>
 
     <footer>
-      <p>Data provided by Yahoo Finance. Prices may be delayed.</p>
+      <p>Market data provided by Yahoo Finance and may be delayed.</p>
+      <p>Built by Fatima</p>
     </footer>
 
     <script src="script.js"></script>

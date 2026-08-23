@@ -5,6 +5,21 @@ const MARKET_INDEXES = [
   { ticker: "^IXIC", name: "NASDAQ Composite" },
   { ticker: "^FTSE", name: "FTSE 100" },
 ];
+// Movers are ranked only within this transparent, widely followed stock set.
+const MOVER_TICKERS = [
+  "AAPL",
+  "MSFT",
+  "NVDA",
+  "AMZN",
+  "GOOGL",
+  "META",
+  "TSLA",
+  "JPM",
+  "V",
+  "XOM",
+  "WMT",
+  "NFLX",
+];
 
 // The browser calls our own Vercel API route. That server-side route contacts
 // Yahoo Finance, avoiding browser CORS restrictions and unreliable public proxies.
@@ -12,6 +27,8 @@ const STOCK_API_URL = "/api/stock";
 
 const trendingGrid = document.querySelector("#trending-grid");
 const marketOverviewGrid = document.querySelector("#market-overview-grid");
+const gainersList = document.querySelector("#gainers-list");
+const losersList = document.querySelector("#losers-list");
 const searchForm = document.querySelector("#search-form");
 const tickerInput = document.querySelector("#ticker-input");
 const searchSection = document.querySelector("#search-section");
@@ -21,12 +38,31 @@ const chartSection = document.querySelector("#chart-section");
 const chartTitle = document.querySelector("#chart-title");
 const chartCompany = document.querySelector("#chart-company");
 const chartContainer = document.querySelector("#chart-container");
+const featuredPrice = document.querySelector("#featured-price");
+const featuredChange = document.querySelector("#featured-change");
+const themeButton = document.querySelector("#theme-button");
+const stockRequestCache = new Map();
 let latestChartRequest = 0;
 
 /**
  * Fetch one stock from Yahoo Finance and return only the fields the UI needs.
  */
-async function fetchStock(ticker) {
+function fetchStock(ticker) {
+  const cacheKey = ticker.toUpperCase();
+
+  if (stockRequestCache.has(cacheKey)) {
+    return stockRequestCache.get(cacheKey);
+  }
+
+  const request = requestStock(cacheKey).catch((error) => {
+    stockRequestCache.delete(cacheKey);
+    throw error;
+  });
+  stockRequestCache.set(cacheKey, request);
+  return request;
+}
+
+async function requestStock(ticker) {
   const requestUrl = `${STOCK_API_URL}?ticker=${encodeURIComponent(ticker)}&range=5d`;
 
   let response;
@@ -66,7 +102,16 @@ async function fetchStock(ticker) {
   }
 
   const price = meta.regularMarketPrice;
-  const previousClose = meta.chartPreviousClose ?? meta.previousClose;
+  const timestamps = result?.timestamp || [];
+  const closes = result?.indicators?.quote?.[0]?.close || [];
+  const sparklinePoints = timestamps
+    .map((timestamp, index) => ({ timestamp, price: closes[index] }))
+    .filter((point) => typeof point.price === "number");
+  const recentCloses = sparklinePoints.map((point) => point.price);
+  const previousClose =
+    recentCloses.length > 1
+      ? recentCloses[recentCloses.length - 2]
+      : meta.regularMarketPreviousClose ?? meta.previousClose ?? meta.chartPreviousClose;
   const percentageChange =
     typeof previousClose === "number" && previousClose !== 0
       ? ((price - previousClose) / previousClose) * 100
@@ -78,6 +123,7 @@ async function fetchStock(ticker) {
     price,
     percentageChange,
     currency: meta.currency || "USD",
+    sparklinePoints,
   };
 }
 
@@ -164,7 +210,71 @@ function createMarketIndexCard(index) {
 
   topRow.append(name, change);
   card.append(topRow, symbol, value);
+
+  if (index.sparklinePoints.length > 1) {
+    card.append(createSparkline(index.sparklinePoints, index.percentageChange));
+  }
+
   return card;
+}
+
+function createSparkline(points, percentageChange) {
+  const width = 240;
+  const height = 52;
+  const prices = points.map((point) => point.price);
+  const lowestPrice = Math.min(...prices);
+  const highestPrice = Math.max(...prices);
+  const priceRange = highestPrice - lowestPrice || 1;
+  const svgNamespace = "http://www.w3.org/2000/svg";
+  const svg = document.createElementNS(svgNamespace, "svg");
+  const path = document.createElementNS(svgNamespace, "path");
+  const pathData = points
+    .map((point, index) => {
+      const x = (index / (points.length - 1)) * width;
+      const y = 3 + ((highestPrice - point.price) / priceRange) * (height - 6);
+      return `${index === 0 ? "M" : "L"} ${x.toFixed(2)} ${y.toFixed(2)}`;
+    })
+    .join(" ");
+
+  svg.setAttribute(
+    "class",
+    `sparkline${percentageChange < 0 ? " negative-sparkline" : ""}`,
+  );
+  svg.setAttribute("viewBox", `0 0 ${width} ${height}`);
+  svg.setAttribute("preserveAspectRatio", "none");
+  svg.setAttribute("aria-hidden", "true");
+  svg.setAttribute("focusable", "false");
+  path.setAttribute("d", pathData);
+  svg.append(path);
+  return svg;
+}
+
+function createMoverRow(stock) {
+  const row = document.createElement("button");
+  row.className = "mover-row";
+  row.type = "button";
+  row.setAttribute("aria-label", `Show ${stock.symbol} as the featured stock`);
+
+  const identity = document.createElement("span");
+  const symbol = document.createElement("span");
+  const name = document.createElement("span");
+  symbol.className = "mover-symbol";
+  name.className = "mover-name";
+  symbol.textContent = stock.symbol;
+  name.textContent = stock.name;
+  identity.append(symbol, name);
+
+  const price = document.createElement("span");
+  price.className = "mover-price";
+  price.textContent = formatPrice(stock.price, stock.currency);
+
+  const change = document.createElement("span");
+  change.className = `mover-change ${stock.percentageChange >= 0 ? "positive-text" : "negative-text"}`;
+  change.textContent = `${stock.percentageChange >= 0 ? "+" : ""}${stock.percentageChange.toFixed(2)}%`;
+
+  row.append(identity, price, change);
+  row.addEventListener("click", () => showStockChart(stock));
+  return row;
 }
 
 /**
@@ -213,14 +323,21 @@ async function fetchChartData(ticker) {
   return points;
 }
 
-async function showStockChart(stock) {
+async function showStockChart(stock, options = {}) {
+  // Do not let a delayed default AAPL response replace a user's selection.
+  if (options.isDefault && latestChartRequest > 0) return;
+
   const requestId = ++latestChartRequest;
 
-  chartSection.hidden = false;
-  chartTitle.textContent = `${stock.symbol} price history`;
+  chartTitle.textContent = stock.symbol;
   chartCompany.textContent = stock.name;
+  featuredPrice.textContent = formatPrice(stock.price, stock.currency);
+  setChangeBadge(featuredChange, stock.percentageChange);
   chartContainer.replaceChildren(createMessage(`Loading ${stock.symbol} chart…`));
-  chartSection.scrollIntoView({ behavior: "smooth", block: "start" });
+
+  if (options.scroll !== false) {
+    chartSection.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
 
   try {
     const points = await fetchChartData(stock.symbol);
@@ -251,7 +368,7 @@ function createPriceChart(points, stock) {
   const lowestPrice = Math.min(...prices);
   const highestPrice = Math.max(...prices);
   const priceRange = highestPrice - lowestPrice || 1;
-  const lineColor = "#16784b";
+  const lineColor = "var(--accent-bright)";
   const svgNamespace = "http://www.w3.org/2000/svg";
 
   const svg = document.createElementNS(svgNamespace, "svg");
@@ -347,6 +464,13 @@ function formatIndexValue(value) {
   }).format(value);
 }
 
+function setChangeBadge(element, percentageChange) {
+  const directionClass =
+    percentageChange > 0 ? "positive" : percentageChange < 0 ? "negative" : "neutral";
+  element.className = `change ${directionClass}`;
+  element.textContent = `${percentageChange >= 0 ? "+" : ""}${percentageChange.toFixed(2)}%`;
+}
+
 function createMessage(text, isError = false) {
   const message = document.createElement("p");
   message.className = `status-message${isError ? " error" : ""}`;
@@ -411,6 +535,89 @@ async function loadMarketOverview() {
   }
 }
 
+/**
+ * Rank live daily changes within the declared mover universe. This is a useful
+ * snapshot of that group, not a claim about every stock in the market.
+ */
+async function loadMarketMovers() {
+  const results = await Promise.allSettled(MOVER_TICKERS.map(fetchStock));
+  const stocks = results
+    .filter((result) => result.status === "fulfilled")
+    .map((result) => result.value);
+  const gainers = stocks
+    .filter((stock) => stock.percentageChange > 0)
+    .sort((first, second) => second.percentageChange - first.percentageChange)
+    .slice(0, 3);
+  const losers = stocks
+    .filter((stock) => stock.percentageChange < 0)
+    .sort((first, second) => first.percentageChange - second.percentageChange)
+    .slice(0, 3);
+
+  renderMoverList(gainersList, gainers, "No gainers are available in the selected group.");
+  renderMoverList(losersList, losers, "No losers are available in the selected group.");
+}
+
+function renderMoverList(container, stocks, emptyMessage) {
+  container.replaceChildren();
+
+  if (stocks.length === 0) {
+    container.append(createMessage(emptyMessage));
+    return;
+  }
+
+  stocks.forEach((stock) => container.append(createMoverRow(stock)));
+}
+
+async function loadDefaultFeaturedStock() {
+  try {
+    const stock = await fetchStock("AAPL");
+    await showStockChart(stock, { scroll: false, isDefault: true });
+  } catch (error) {
+    chartCompany.textContent = "Apple market data is temporarily unavailable.";
+    chartContainer.replaceChildren(
+      createMessage(error.message || "The featured stock could not be loaded.", true),
+    );
+  }
+}
+
+function applySavedTheme() {
+  let savedTheme;
+
+  try {
+    savedTheme = localStorage.getItem("stock-dashboard-theme");
+  } catch (error) {
+    savedTheme = null;
+  }
+
+  if (savedTheme === "light") {
+    document.body.classList.add("light-theme");
+  }
+
+  updateThemeButton();
+}
+
+function toggleTheme() {
+  document.body.classList.toggle("light-theme");
+  const theme = document.body.classList.contains("light-theme") ? "light" : "dark";
+
+  try {
+    localStorage.setItem("stock-dashboard-theme", theme);
+  } catch (error) {
+    // The theme still works when browser privacy settings block local storage.
+  }
+
+  updateThemeButton();
+}
+
+function updateThemeButton() {
+  const lightThemeIsActive = document.body.classList.contains("light-theme");
+  themeButton.setAttribute(
+    "aria-label",
+    lightThemeIsActive ? "Switch to dark theme" : "Switch to light theme",
+  );
+  themeButton.setAttribute("aria-pressed", String(lightThemeIsActive));
+}
+
 async function handleSearch(event) {
   event.preventDefault();
 
@@ -429,16 +636,21 @@ async function handleSearch(event) {
   try {
     const stock = await fetchStock(ticker);
     searchResult.replaceChildren(createStockCard(stock));
+    showStockChart(stock);
   } catch (error) {
     searchResult.replaceChildren(
       createMessage(error.message || "Something went wrong. Please try again.", true),
     );
   } finally {
     searchButton.disabled = false;
-    searchButton.textContent = "Search";
+    searchButton.textContent = "Search market";
   }
 }
 
 searchForm.addEventListener("submit", handleSearch);
+themeButton.addEventListener("click", toggleTheme);
+applySavedTheme();
 loadMarketOverview();
+loadMarketMovers();
+loadDefaultFeaturedStock();
 loadTrendingStocks();
