@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="A beginner-friendly stock dashboard powered by Yahoo Finance data."
+    />
+    <title>Stock Dashboard</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header class="site-header">
+      <a class="brand" href="#" aria-label="Stock Dashboard home">
+        <span class="brand-icon" aria-hidden="true">↗</span>
+        Stock Dashboard
+      </a>
+    </header>
+
+    <main>
+      <section class="hero" aria-labelledby="page-title">
+        <p class="eyebrow">MARKET SNAPSHOT</p>
+        <h1 id="page-title">Follow the market.<br /><span>Simply.</span></h1>
+        <p class="hero-copy">
+          Search for a stock symbol to see its latest price and daily movement.
+        </p>
+
+        <form class="search-form" id="search-form" role="search">
+          <label class="sr-only" for="ticker-input">Stock ticker</label>
+          <span class="search-icon" aria-hidden="true">⌕</span>
+          <input
+            id="ticker-input"
+            name="ticker"
+            type="text"
+            placeholder="Search a ticker, e.g. AAPL"
+            autocomplete="off"
+            spellcheck="false"
+            maxlength="12"
+            required
+          />
+          <button type="submit">Search</button>
+        </form>
+        <p class="search-hint">Press Enter or select Search</p>
+      </section>
+
+      <section
+        id="search-section"
+        class="stocks-section search-section"
+        aria-labelledby="search-title"
+        hidden
+      >
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">SEARCH RESULT</p>
+            <h2 id="search-title">Stock found</h2>
+          </div>
+        </div>
+        <div id="search-result" aria-live="polite"></div>
+      </section>
+
+      <section
+        id="chart-section"
+        class="stocks-section chart-section"
+        aria-labelledby="chart-title"
+        hidden
+      >
+        <div class="section-heading chart-heading">
+          <div>
+            <p class="eyebrow">1 MONTH · DAILY</p>
+            <h2 id="chart-title">Price history</h2>
+            <p id="chart-company" class="chart-company"></p>
+          </div>
+        </div>
+        <div id="chart-container" class="chart-container" aria-live="polite"></div>
+      </section>
+
+      <section class="stocks-section" aria-labelledby="trending-title">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">POPULAR NOW</p>
+            <h2 id="trending-title">Trending stocks</h2>
+          </div>
+          <p>Latest available market prices</p>
+        </div>
+
+        <div id="trending-grid" class="stock-grid" aria-live="polite">
+          <p class="status-message">Loading trending stocks…</p>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      <p>Data provided by Yahoo Finance. Prices may be delayed.</p>
+    </footer>
+
+    <script src="script.js"></script>
+  </body>
+</html>
