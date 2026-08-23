@@ -1,11 +1,17 @@
 // The six tickers shown when the page first loads.
 const TRENDING_TICKERS = ["AAPL", "TSLA", "NVDA", "MSFT", "AMZN", "GOOGL"];
+const MARKET_INDEXES = [
+  { ticker: "^GSPC", name: "S&P 500" },
+  { ticker: "^IXIC", name: "NASDAQ Composite" },
+  { ticker: "^FTSE", name: "FTSE 100" },
+];
 
 // The browser calls our own Vercel API route. That server-side route contacts
 // Yahoo Finance, avoiding browser CORS restrictions and unreliable public proxies.
 const STOCK_API_URL = "/api/stock";
 
 const trendingGrid = document.querySelector("#trending-grid");
+const marketOverviewGrid = document.querySelector("#market-overview-grid");
 const searchForm = document.querySelector("#search-form");
 const tickerInput = document.querySelector("#ticker-input");
 const searchSection = document.querySelector("#search-section");
@@ -122,6 +128,42 @@ function createStockCard(stock) {
     }
   });
 
+  return card;
+}
+
+/**
+ * Build a compact, non-interactive card for a major market index.
+ */
+function createMarketIndexCard(index) {
+  const card = document.createElement("article");
+  card.className = "market-index-card";
+
+  const topRow = document.createElement("div");
+  topRow.className = "market-index-top";
+
+  const name = document.createElement("h3");
+  name.textContent = index.displayName;
+
+  const change = document.createElement("span");
+  const directionClass =
+    index.percentageChange > 0
+      ? "positive"
+      : index.percentageChange < 0
+        ? "negative"
+        : "neutral";
+  change.className = `change ${directionClass}`;
+  change.textContent = `${index.percentageChange >= 0 ? "+" : ""}${index.percentageChange.toFixed(2)}%`;
+
+  const symbol = document.createElement("p");
+  symbol.className = "market-index-symbol";
+  symbol.textContent = index.symbol;
+
+  const value = document.createElement("p");
+  value.className = "market-index-value";
+  value.textContent = formatIndexValue(index.price);
+
+  topRow.append(name, change);
+  card.append(topRow, symbol, value);
   return card;
 }
 
@@ -298,6 +340,13 @@ function formatPrice(price, currency) {
   }
 }
 
+function formatIndexValue(value) {
+  return new Intl.NumberFormat("en-GB", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(value);
+}
+
 function createMessage(text, isError = false) {
   const message = document.createElement("p");
   message.className = `status-message${isError ? " error" : ""}`;
@@ -331,6 +380,37 @@ async function loadTrendingStocks() {
   }
 }
 
+/**
+ * Load the major indexes independently so one unavailable market does not hide
+ * the other successful results.
+ */
+async function loadMarketOverview() {
+  const results = await Promise.allSettled(
+    MARKET_INDEXES.map(async (marketIndex) => ({
+      ...(await fetchStock(marketIndex.ticker)),
+      displayName: marketIndex.name,
+    })),
+  );
+  const indexes = results
+    .filter((result) => result.status === "fulfilled")
+    .map((result) => result.value);
+
+  marketOverviewGrid.replaceChildren();
+
+  if (indexes.length === 0) {
+    marketOverviewGrid.append(
+      createMessage("Market overview could not be loaded. Please refresh to try again.", true),
+    );
+    return;
+  }
+
+  indexes.forEach((index) => marketOverviewGrid.append(createMarketIndexCard(index)));
+
+  if (indexes.length < MARKET_INDEXES.length) {
+    marketOverviewGrid.append(createMessage("Some market indexes could not be loaded."));
+  }
+}
+
 async function handleSearch(event) {
   event.preventDefault();
 
@@ -360,4 +440,5 @@ async function handleSearch(event) {
 }
 
 searchForm.addEventListener("submit", handleSearch);
+loadMarketOverview();
 loadTrendingStocks();
