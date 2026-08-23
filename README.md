@@ -4,7 +4,7 @@ An interactive financial markets dashboard built with HTML, CSS, and vanilla Jav
 
 ## Live Demo
 
-[View the deployed StockFrame dashboard](https://stock-dashboard-swart-zeta.vercel.app/)
+[View the deployed StockFrame dashboard](https://stockframe.vercel.app/)
 
 ## Key Features
 
