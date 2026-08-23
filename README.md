@@ -4,22 +4,27 @@ A beginner-friendly stock dashboard made with plain HTML, CSS, and JavaScript. I
 
 ## Run locally
 
-Because browsers apply stricter rules when a page is opened directly as a file, run the project through a small local web server.
+Because the project includes a serverless API route, run it through Vercel's local development server.
 
-If Python is installed, open a terminal in this folder and run:
+The dashboard now includes a Vercel serverless API route, so use the Vercel CLI
+to run both the website and API locally:
 
 ```bash
-python3 -m http.server 8000
+npx vercel dev
 ```
 
-Then visit <http://localhost:8000> in your browser.
-
-You can also use an editor extension such as VS Code Live Server.
+Then open the local URL printed in the terminal. A plain static server or VS Code
+Live Server cannot run the `/api/stock` serverless function.
 
 ## How the data works
 
-`script.js` requests market data from Yahoo Finance's chart endpoint. Since Yahoo Finance blocks direct browser requests with CORS, requests pass through the public `corsproxy.io` service.
+`script.js` requests market data from the same-site `/api/stock` route. The
+serverless function in `api/stock.js` fetches Yahoo Finance data on the server,
+where browser CORS restrictions do not apply. It validates requests, uses a
+timeout and fallback Yahoo host, and lets Vercel cache successful responses
+briefly to reduce repeated calls.
 
-This keeps the first version simple and backend-free, but a public proxy is not suitable for a production app: it can be slow, unavailable, or rate-limited. A later version should use a small server-side API route.
+Vercel detects and deploys files in the `api` directory automatically. No API
+key or environment variable is required.
 
 Stock prices may be delayed. This project is for learning purposes and is not financial advice.

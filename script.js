@@ -1,10 +1,9 @@
 // The six tickers shown when the page first loads.
 const TRENDING_TICKERS = ["AAPL", "TSLA", "NVDA", "MSFT", "AMZN", "GOOGL"];
 
-// Yahoo Finance does not allow requests directly from most browser pages.
-// corsproxy.io fetches the Yahoo URL for us and adds the required CORS headers.
-const CORS_PROXY = "https://corsproxy.io/?url=";
-const YAHOO_CHART_URL = "https://query1.finance.yahoo.com/v8/finance/chart/";
+// The browser calls our own Vercel API route. That server-side route contacts
+// Yahoo Finance, avoiding browser CORS restrictions and unreliable public proxies.
+const STOCK_API_URL = "/api/stock";
 
 const trendingGrid = document.querySelector("#trending-grid");
 const searchForm = document.querySelector("#search-form");
@@ -22,8 +21,7 @@ let latestChartRequest = 0;
  * Fetch one stock from Yahoo Finance and return only the fields the UI needs.
  */
 async function fetchStock(ticker) {
-  const yahooUrl = `${YAHOO_CHART_URL}${encodeURIComponent(ticker)}?interval=1d&range=5d`;
-  const requestUrl = `${CORS_PROXY}${encodeURIComponent(yahooUrl)}`;
+  const requestUrl = `${STOCK_API_URL}?ticker=${encodeURIComponent(ticker)}&range=5d`;
 
   let response;
 
@@ -131,8 +129,7 @@ function createStockCard(stock) {
  * Fetch one month of daily closing prices for the selected ticker.
  */
 async function fetchChartData(ticker) {
-  const yahooUrl = `${YAHOO_CHART_URL}${encodeURIComponent(ticker)}?interval=1d&range=1mo`;
-  const requestUrl = `${CORS_PROXY}${encodeURIComponent(yahooUrl)}`;
+  const requestUrl = `${STOCK_API_URL}?ticker=${encodeURIComponent(ticker)}&range=1mo`;
 
   let response;
 
