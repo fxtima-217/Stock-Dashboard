@@ -1,10 +1,10 @@
-# Stock Dashboard
+# StockFrame
 
-A responsive stock market dashboard built with HTML, CSS, and vanilla JavaScript. It displays the latest available prices for a selection of popular stocks, supports ticker searches, and draws an interactive one-month price chart.
+An interactive financial markets dashboard built with HTML, CSS, and vanilla JavaScript. It displays the latest available prices for major indexes and a selection of popular stocks, supports ticker searches, and draws an interactive one-month price chart.
 
 ## Live Demo
 
-[View the deployed Stock Dashboard](https://stock-dashboard-swart-zeta.vercel.app/)
+[View the deployed StockFrame dashboard](https://stock-dashboard-swart-zeta.vercel.app/)
 
 ## Key Features
 
