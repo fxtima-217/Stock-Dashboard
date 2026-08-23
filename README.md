@@ -1,30 +1,81 @@
 # Stock Dashboard
 
-A beginner-friendly stock dashboard made with plain HTML, CSS, and JavaScript. It displays six trending stocks and lets you search for any Yahoo Finance ticker.
+A responsive stock market dashboard built with HTML, CSS, and vanilla JavaScript. It displays the latest available prices for a selection of popular stocks, supports ticker searches, and draws an interactive one-month price chart.
 
-## Run locally
+## Live Demo
 
-Because the project includes a serverless API route, run it through Vercel's local development server.
+[View the deployed Stock Dashboard](https://stock-dashboard-swart-zeta.vercel.app/)
 
-The dashboard now includes a Vercel serverless API route, so use the Vercel CLI
-to run both the website and API locally:
+## Key Features
 
-```bash
-npx vercel dev
+- Displays current price information for six popular stocks
+- Searches for stocks using their ticker symbols
+- Shows daily percentage movement
+- Draws a one-month price history chart when a stock card is selected
+- Handles loading states, unavailable data, and invalid tickers
+- Uses a responsive, accessible interface
+
+## Technologies Used
+
+- HTML5
+- CSS3
+- Vanilla JavaScript
+- Fetch API and async/await
+- SVG for chart rendering
+- Yahoo Finance market data
+- Vercel Serverless Functions
+- Git and GitHub
+- Vercel deployment
+
+## How It Works
+
+When the page loads, `script.js` requests data for a predefined list of popular ticker symbols. A user can also submit another ticker through the search form. The returned JSON is validated and transformed into stock cards using DOM methods.
+
+Selecting a card requests one month of daily prices. The application converts those values into a responsive SVG line chart without using a charting library.
+
+### Architecture
+
+```text
+Browser → Vercel serverless API route → Yahoo Finance
 ```
 
-Then open the local URL printed in the terminal. A plain static server or VS Code
-Live Server cannot run the `/api/stock` serverless function.
+The browser sends same-origin requests to `/api/stock`. The serverless function validates the request, contacts Yahoo Finance, and returns the market data to the browser. It also uses a timeout, a fallback Yahoo host, and short-lived caching to make requests more resilient.
 
-## How the data works
+Yahoo Finance does not allow this data to be requested directly from most browser pages because of CORS restrictions. A public CORS proxy can become unavailable, rate-limit requests, or introduce privacy and reliability concerns. Using a serverless API route keeps the data request under the application's control and is better suited to a deployed project.
 
-`script.js` requests market data from the same-site `/api/stock` route. The
-serverless function in `api/stock.js` fetches Yahoo Finance data on the server,
-where browser CORS restrictions do not apply. It validates requests, uses a
-timeout and fallback Yahoo host, and lets Vercel cache successful responses
-briefly to reduce repeated calls.
+## What I Learned
 
-Vercel detects and deploys files in the `api` directory automatically. No API
-key or environment variable is required.
+This project helped me practise:
 
-Stock prices may be delayed. This project is for learning purposes and is not financial advice.
+- Requesting API data with `fetch` and `async/await`
+- Reading and validating JSON responses
+- Rendering dynamic content with the DOM
+- Creating charts with SVG
+- Handling errors and loading states
+- Understanding browser CORS restrictions
+- Using Git and GitHub for version control
+- Deploying a frontend and serverless API with Vercel
+
+## Local Development
+
+Node.js is required because the Vercel development server runs the serverless API route locally.
+
+1. Clone the repository and open the project directory.
+2. Start the local Vercel environment:
+
+   ```bash
+   npx vercel dev
+   ```
+
+3. Open the local URL shown in the terminal.
+
+No API key or environment variable is required. A basic static server or VS Code Live Server will display the page, but it cannot run the `/api/stock` function.
+
+## Future Improvements
+
+- Add selectable chart time ranges
+- Add a personal watchlist using local storage
+- Improve chart details with hover tooltips
+- Add automated tests for the API route and UI logic
+
+> Market prices may be delayed. This project is for educational purposes and is not financial advice.
