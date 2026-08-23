@@ -1,5 +1,5 @@
 const YAHOO_CHART_HOSTS = ["query1.finance.yahoo.com", "query2.finance.yahoo.com"];
-const ALLOWED_RANGES = new Set(["5d", "1mo"]);
+const ALLOWED_RANGES = new Set(["5d", "1mo", "1y"]);
 const TICKER_PATTERN = /^[A-Z0-9.^=-]{1,15}$/i;
 
 module.exports = async function handler(request, response) {

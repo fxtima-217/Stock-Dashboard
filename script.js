@@ -24,6 +24,7 @@ const MOVER_TICKERS = [
 // The browser calls our own Vercel API route. That server-side route contacts
 // Yahoo Finance, avoiding browser CORS restrictions and unreliable public proxies.
 const STOCK_API_URL = "/api/stock";
+const FUNDAMENTALS_API_URL = "/api/fundamentals";
 
 const trendingGrid = document.querySelector("#trending-grid");
 const marketOverviewGrid = document.querySelector("#market-overview-grid");
@@ -40,8 +41,12 @@ const chartCompany = document.querySelector("#chart-company");
 const chartContainer = document.querySelector("#chart-container");
 const featuredPrice = document.querySelector("#featured-price");
 const featuredChange = document.querySelector("#featured-change");
+const performanceGrid = document.querySelector("#performance-grid");
+const fundamentalsContainer = document.querySelector("#fundamentals-container");
 const themeButton = document.querySelector("#theme-button");
 const stockRequestCache = new Map();
+const performanceRequestCache = new Map();
+const fundamentalsRequestCache = new Map();
 let latestChartRequest = 0;
 
 /**
@@ -323,6 +328,345 @@ async function fetchChartData(ticker) {
   return points;
 }
 
+/**
+ * Fetch one year of daily candles and derive analytics from actual Yahoo data.
+ */
+function fetchPerformanceData(ticker) {
+  const cacheKey = ticker.toUpperCase();
+
+  if (performanceRequestCache.has(cacheKey)) {
+    return performanceRequestCache.get(cacheKey);
+  }
+
+  const request = requestPerformanceData(cacheKey).catch((error) => {
+    performanceRequestCache.delete(cacheKey);
+    throw error;
+  });
+  performanceRequestCache.set(cacheKey, request);
+  return request;
+}
+
+async function requestPerformanceData(ticker) {
+  const requestUrl = `${STOCK_API_URL}?ticker=${encodeURIComponent(ticker)}&range=1y`;
+  let response;
+
+  try {
+    response = await fetch(requestUrl);
+  } catch (error) {
+    throw new Error("Could not connect to the performance service.");
+  }
+
+  if (!response.ok) {
+    throw new Error("Performance data is unavailable right now.");
+  }
+
+  let data;
+
+  try {
+    data = await response.json();
+  } catch (error) {
+    throw new Error("The performance service returned an unexpected response.");
+  }
+
+  const result = data?.chart?.result?.[0];
+  const timestamps = result?.timestamp;
+  const quote = result?.indicators?.quote?.[0];
+
+  if (!timestamps || !quote?.close) {
+    throw new Error("No one-year performance data is available for this ticker.");
+  }
+
+  const candles = timestamps
+    .map((timestamp, index) => ({
+      timestamp,
+      close: quote.close[index],
+      high: quote.high?.[index],
+      low: quote.low?.[index],
+      volume: quote.volume?.[index],
+    }))
+    .filter((candle) => typeof candle.close === "number");
+
+  if (candles.length < 2) {
+    throw new Error("Not enough performance data is available for this ticker.");
+  }
+
+  return calculatePerformanceAnalytics(candles);
+}
+
+function calculatePerformanceAnalytics(candles) {
+  const latestClose = candles[candles.length - 1].close;
+  const previousClose = candles[candles.length - 2].close;
+  const highs = candles
+    .map((candle) => candle.high)
+    .filter((value) => typeof value === "number");
+  const lows = candles
+    .map((candle) => candle.low)
+    .filter((value) => typeof value === "number");
+  const volumes = candles
+    .map((candle) => candle.volume)
+    .filter((value) => typeof value === "number" && value >= 0);
+
+  return {
+    oneDay: calculatePercentageReturn(latestClose, previousClose),
+    oneMonth: calculatePeriodReturn(candles, 1),
+    threeMonths: calculatePeriodReturn(candles, 3),
+    sixMonths: calculatePeriodReturn(candles, 6),
+    oneYear: calculatePeriodReturn(candles, 12),
+    fiftyTwoWeekHigh: highs.length > 0 ? Math.max(...highs) : null,
+    fiftyTwoWeekLow: lows.length > 0 ? Math.min(...lows) : null,
+    averageVolume:
+      volumes.length > 0
+        ? volumes.reduce((total, volume) => total + volume, 0) / volumes.length
+        : null,
+  };
+}
+
+function calculatePeriodReturn(candles, months) {
+  const latestCandle = candles[candles.length - 1];
+  const targetTimestamp = subtractMonths(latestCandle.timestamp, months);
+  let baselineCandle = null;
+
+  // Prefer the final trading session on or before the calendar cutoff.
+  for (const candle of candles) {
+    if (candle.timestamp <= targetTimestamp) {
+      baselineCandle = candle;
+    } else {
+      break;
+    }
+  }
+
+  // A one-year response can begin just after the cutoff on a weekend or holiday.
+  baselineCandle ||= candles[0];
+  return calculatePercentageReturn(latestCandle.close, baselineCandle.close);
+}
+
+function subtractMonths(timestamp, months) {
+  const date = new Date(timestamp * 1000);
+  const originalDay = date.getUTCDate();
+  date.setUTCDate(1);
+  date.setUTCMonth(date.getUTCMonth() - months);
+  const lastDayOfTargetMonth = new Date(
+    Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + 1, 0),
+  ).getUTCDate();
+  date.setUTCDate(Math.min(originalDay, lastDayOfTargetMonth));
+  return Math.floor(date.getTime() / 1000);
+}
+
+function calculatePercentageReturn(latestValue, earlierValue) {
+  if (
+    typeof latestValue !== "number" ||
+    typeof earlierValue !== "number" ||
+    earlierValue === 0
+  ) {
+    return null;
+  }
+
+  return ((latestValue - earlierValue) / earlierValue) * 100;
+}
+
+function fetchFundamentals(ticker) {
+  const cacheKey = ticker.toUpperCase();
+
+  if (fundamentalsRequestCache.has(cacheKey)) {
+    return fundamentalsRequestCache.get(cacheKey);
+  }
+
+  const request = requestFundamentals(cacheKey).catch((error) => {
+    fundamentalsRequestCache.delete(cacheKey);
+    throw error;
+  });
+  fundamentalsRequestCache.set(cacheKey, request);
+  return request;
+}
+
+async function requestFundamentals(ticker) {
+  let response;
+
+  try {
+    response = await fetch(
+      `${FUNDAMENTALS_API_URL}?ticker=${encodeURIComponent(ticker)}`,
+    );
+  } catch (error) {
+    throw new Error("Could not connect to the fundamentals service.");
+  }
+
+  let data;
+
+  try {
+    data = await response.json();
+  } catch (error) {
+    throw new Error("The fundamentals service returned an unexpected response.");
+  }
+
+  if (!response.ok) {
+    return { available: false, reason: "request_failed" };
+  }
+
+  return data;
+}
+
+async function loadFundamentalsForStock(stock, requestId) {
+  if (stock.symbol.startsWith("^")) {
+    fundamentalsContainer.replaceChildren(
+      createMessage("Company fundamentals are not available for market indexes."),
+    );
+    return;
+  }
+
+  fundamentalsContainer.replaceChildren(
+    createMessage(`Loading ${stock.symbol} fundamentals…`),
+  );
+
+  try {
+    const fundamentals = await fetchFundamentals(stock.symbol);
+
+    if (requestId !== latestChartRequest) return;
+
+    if (!fundamentals?.available) {
+      renderFundamentalsUnavailable();
+      return;
+    }
+
+    renderFundamentals(fundamentals);
+  } catch (error) {
+    if (requestId !== latestChartRequest) return;
+    renderFundamentalsUnavailable();
+  }
+}
+
+function renderFundamentalsUnavailable() {
+  fundamentalsContainer.replaceChildren(
+    createMessage("Fundamentals unavailable for this ticker."),
+  );
+}
+
+function renderFundamentals(fundamentals) {
+  const company = fundamentals.company || {};
+  const snapshot = fundamentals.financialSnapshot || {};
+  const valuation = fundamentals.valuation || {};
+  const content = document.createElement("div");
+  content.className = "company-overview-content";
+
+  const companyHeader = document.createElement("div");
+  companyHeader.className = "company-header";
+  const companyName = document.createElement("h4");
+  companyName.textContent = company.name || "Not available";
+  const metadataRow = document.createElement("div");
+  metadataRow.className = "company-metadata-row";
+  metadataRow.append(
+    createCompanyBadge(company.ticker || "—", "Ticker"),
+    createCompanyBadge(company.exchange || "Not available", "Exchange"),
+    createCompanyBadge(company.sector || "Not available", "Sector"),
+    createCompanyBadge(company.industry || "Not available", "Industry"),
+  );
+  companyHeader.append(companyName, metadataRow);
+
+  const descriptionArea = document.createElement("div");
+  descriptionArea.className = "company-description-area";
+  const description = document.createElement("p");
+  description.id = "company-description";
+  description.className = "company-description is-collapsed";
+  description.textContent = company.description || "Business description not available.";
+  descriptionArea.append(description);
+
+  if (company.description) {
+    descriptionArea.append(createDescriptionToggle(description));
+  }
+
+  const financialGroup = createFundamentalsGroup("Financial Snapshot", [
+    createFinancialMetric(
+      "Market capitalisation",
+      formatCompactCurrency(snapshot.marketCap, snapshot.currency),
+      formatExactCurrency(snapshot.marketCap, snapshot.currency),
+    ),
+    createFinancialMetric(
+      "Revenue",
+      formatCompactCurrency(snapshot.revenue, snapshot.currency),
+      formatExactCurrency(snapshot.revenue, snapshot.currency),
+    ),
+    createFinancialMetric(
+      "Net income",
+      formatCompactCurrency(snapshot.netIncome, snapshot.currency),
+      formatExactCurrency(snapshot.netIncome, snapshot.currency),
+    ),
+    createFinancialMetric(
+      "Trailing EPS",
+      formatOptionalPrice(snapshot.trailingEps, snapshot.currency),
+    ),
+    createFinancialMetric("Profit margin", formatFundamentalPercent(snapshot.profitMargin)),
+  ]);
+
+  const valuationGroup = createFundamentalsGroup("Valuation", [
+    createFinancialMetric("Trailing P/E", formatRatio(valuation.trailingPe)),
+    createFinancialMetric("Forward P/E", formatRatio(valuation.forwardPe)),
+    createFinancialMetric("Price to sales", formatRatio(valuation.priceToSales)),
+    createFinancialMetric("Price to book", formatRatio(valuation.priceToBook)),
+    createFinancialMetric("Dividend yield", formatFundamentalPercent(valuation.dividendYield)),
+  ]);
+
+  content.append(companyHeader, descriptionArea, financialGroup, valuationGroup);
+  fundamentalsContainer.replaceChildren(content);
+}
+
+function createCompanyBadge(text, labelText) {
+  const badge = document.createElement("span");
+  badge.className = "company-badge";
+  const label = document.createElement("span");
+  label.className = "company-badge-label";
+  label.textContent = `${labelText} · `;
+  badge.append(label, document.createTextNode(text));
+  return badge;
+}
+
+function createDescriptionToggle(description) {
+  const button = document.createElement("button");
+  button.className = "description-toggle";
+  button.type = "button";
+  button.textContent = "Read more";
+  button.setAttribute("aria-expanded", "false");
+  button.setAttribute("aria-controls", description.id);
+
+  button.addEventListener("click", () => {
+    const isExpanded = button.getAttribute("aria-expanded") === "true";
+    button.setAttribute("aria-expanded", String(!isExpanded));
+    button.textContent = isExpanded ? "Read more" : "Show less";
+    description.classList.toggle("is-collapsed", isExpanded);
+  });
+
+  return button;
+}
+
+function createFundamentalsGroup(titleText, metrics) {
+  const group = document.createElement("section");
+  group.className = "fundamentals-group";
+  const title = document.createElement("h4");
+  title.textContent = titleText;
+  const grid = document.createElement("div");
+  grid.className = "fundamentals-grid";
+  grid.append(...metrics);
+  group.append(title, grid);
+  return group;
+}
+
+function createFinancialMetric(labelText, valueText, exactValue = null) {
+  const metric = document.createElement("div");
+  metric.className = "fundamental-metric";
+  const label = document.createElement("span");
+  label.className = "fundamental-label";
+  label.textContent = labelText;
+  const value = document.createElement("span");
+  value.className = "fundamental-value";
+  value.textContent = valueText;
+
+  if (exactValue) {
+    value.title = exactValue;
+    value.setAttribute("aria-label", exactValue);
+  }
+
+  metric.append(label, value);
+  return metric;
+}
+
 async function showStockChart(stock, options = {}) {
   // Do not let a delayed default AAPL response replace a user's selection.
   if (options.isDefault && latestChartRequest > 0) return;
@@ -334,23 +678,40 @@ async function showStockChart(stock, options = {}) {
   featuredPrice.textContent = formatPrice(stock.price, stock.currency);
   setChangeBadge(featuredChange, stock.percentageChange);
   chartContainer.replaceChildren(createMessage(`Loading ${stock.symbol} chart…`));
+  performanceGrid.replaceChildren(createMessage(`Loading ${stock.symbol} performance…`));
+  loadFundamentalsForStock(stock, requestId);
 
   if (options.scroll !== false) {
     chartSection.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
-  try {
-    const points = await fetchChartData(stock.symbol);
+  const [chartResult, performanceResult] = await Promise.allSettled([
+    fetchChartData(stock.symbol),
+    fetchPerformanceData(stock.symbol),
+  ]);
 
-    // Ignore this response if the user selected another card while it loaded.
-    if (requestId !== latestChartRequest) return;
+  // Ignore both responses if the user selected another stock while they loaded.
+  if (requestId !== latestChartRequest) return;
 
-    chartContainer.replaceChildren(createPriceChart(points, stock));
-  } catch (error) {
-    if (requestId !== latestChartRequest) return;
-
+  if (chartResult.status === "fulfilled") {
+    chartContainer.replaceChildren(createPriceChart(chartResult.value, stock));
+  } else {
     chartContainer.replaceChildren(
-      createMessage(error.message || "The chart could not be loaded. Please try again.", true),
+      createMessage(
+        chartResult.reason?.message || "The chart could not be loaded. Please try again.",
+        true,
+      ),
+    );
+  }
+
+  if (performanceResult.status === "fulfilled") {
+    renderPerformanceAnalytics(performanceResult.value, stock.currency);
+  } else {
+    performanceGrid.replaceChildren(
+      createMessage(
+        performanceResult.reason?.message || "Performance data could not be loaded.",
+        true,
+      ),
     );
   }
 }
@@ -462,6 +823,140 @@ function formatIndexValue(value) {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   }).format(value);
+}
+
+function renderPerformanceAnalytics(analytics, currency) {
+  const metrics = [
+    { label: "1D return", value: formatReturn(analytics.oneDay), return: analytics.oneDay },
+    { label: "1M return", value: formatReturn(analytics.oneMonth), return: analytics.oneMonth },
+    {
+      label: "3M return",
+      value: formatReturn(analytics.threeMonths),
+      return: analytics.threeMonths,
+    },
+    {
+      label: "6M return",
+      value: formatReturn(analytics.sixMonths),
+      return: analytics.sixMonths,
+    },
+    { label: "1Y return", value: formatReturn(analytics.oneYear), return: analytics.oneYear },
+    {
+      label: "52-week high",
+      value: formatOptionalPrice(analytics.fiftyTwoWeekHigh, currency),
+    },
+    {
+      label: "52-week low",
+      value: formatOptionalPrice(analytics.fiftyTwoWeekLow, currency),
+    },
+    {
+      label: "Average volume",
+      value: formatVolume(analytics.averageVolume),
+      exactValue:
+        typeof analytics.averageVolume === "number"
+          ? `${Math.round(analytics.averageVolume).toLocaleString("en-US")} shares`
+          : null,
+    },
+  ];
+
+  performanceGrid.replaceChildren(
+    ...metrics.map((metric) => createPerformanceMetric(metric)),
+  );
+}
+
+function createPerformanceMetric(metric) {
+  const item = document.createElement("div");
+  item.className = "performance-metric";
+
+  const label = document.createElement("span");
+  label.className = "performance-label";
+  label.textContent = metric.label;
+
+  const value = document.createElement("span");
+  value.className = "performance-value";
+  value.textContent = metric.value;
+
+  if (metric.return > 0) {
+    value.classList.add("positive-text");
+  } else if (metric.return < 0) {
+    value.classList.add("negative-text");
+  }
+
+  if (metric.exactValue) {
+    value.title = metric.exactValue;
+    value.setAttribute("aria-label", metric.exactValue);
+  }
+
+  item.append(label, value);
+  return item;
+}
+
+function formatReturn(value) {
+  if (typeof value !== "number") return "—";
+  return `${value >= 0 ? "+" : ""}${value.toFixed(2)}%`;
+}
+
+function formatOptionalPrice(value, currency) {
+  if (typeof value !== "number") return "—";
+  return currency ? formatPrice(value, currency) : formatIndexValue(value);
+}
+
+function formatVolume(value) {
+  if (typeof value !== "number") return "—";
+
+  return new Intl.NumberFormat("en-US", {
+    notation: "compact",
+    maximumFractionDigits: 1,
+  }).format(Math.round(value));
+}
+
+function formatCompactCurrency(value, currency) {
+  if (typeof value !== "number") return "—";
+
+  try {
+    if (currency) {
+      return new Intl.NumberFormat("en-US", {
+        style: "currency",
+        currency,
+        notation: "compact",
+        maximumFractionDigits: 2,
+      }).format(value);
+    }
+  } catch (error) {
+    // Fall back to a compact number followed by the currency code.
+  }
+
+  const compactValue = new Intl.NumberFormat("en-US", {
+    notation: "compact",
+    maximumFractionDigits: 2,
+  }).format(value);
+  return currency ? `${compactValue} ${currency}` : compactValue;
+}
+
+function formatExactCurrency(value, currency) {
+  if (typeof value !== "number") return null;
+
+  try {
+    if (currency) {
+      return new Intl.NumberFormat("en-US", {
+        style: "currency",
+        currency,
+        maximumFractionDigits: 0,
+      }).format(value);
+    }
+  } catch (error) {
+    // Fall back to a full number followed by the currency code.
+  }
+
+  const exactValue = Math.round(value).toLocaleString("en-US");
+  return currency ? `${exactValue} ${currency}` : exactValue;
+}
+
+function formatFundamentalPercent(value) {
+  return typeof value === "number" ? `${(value * 100).toFixed(2)}%` : "—";
+}
+
+function formatRatio(value) {
+  return typeof value === "number" ? `${value.toFixed(2)}x` : "—";
 }
 
 function setChangeBadge(element, percentageChange) {
@@ -577,6 +1072,10 @@ async function loadDefaultFeaturedStock() {
     chartContainer.replaceChildren(
       createMessage(error.message || "The featured stock could not be loaded.", true),
     );
+    performanceGrid.replaceChildren(
+      createMessage("AAPL performance data could not be loaded.", true),
+    );
+    renderFundamentalsUnavailable();
   }
 }
 

@@ -428,7 +428,9 @@ h1 span {
 .stock-card,
 .market-index-card,
 .mover-panel,
-.featured-card {
+.featured-card,
+.performance-card,
+.fundamentals-card {
   border: 1px solid var(--line);
   background: linear-gradient(145deg, var(--surface-raised), var(--surface));
   box-shadow: inset 0 1px rgba(255, 255, 255, 0.025);
@@ -681,6 +683,228 @@ h1 span {
   box-shadow: var(--shadow), var(--glow), inset 0 1px rgba(255, 255, 255, 0.025);
 }
 
+.performance-card {
+  margin-top: 18px;
+  padding: 26px;
+  border-radius: 22px;
+}
+
+.performance-card-heading {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 2px 2px 22px;
+  border-bottom: 1px solid var(--line);
+}
+
+.performance-card-heading h3 {
+  margin: 0;
+  font-size: 1.2rem;
+  font-weight: 600;
+  letter-spacing: -0.03em;
+}
+
+.performance-card-heading > p {
+  margin: 0 0 2px;
+  color: var(--muted);
+  font-size: 0.72rem;
+}
+
+.performance-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 15px;
+  margin-top: 22px;
+  background: var(--line);
+}
+
+.performance-metric {
+  min-width: 0;
+  padding: 19px;
+  background: var(--surface);
+}
+
+.performance-label {
+  display: block;
+  margin-bottom: 9px;
+  color: var(--muted);
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.performance-value {
+  display: block;
+  font-size: 1.05rem;
+  font-weight: 600;
+  letter-spacing: -0.025em;
+}
+
+.performance-grid > .status-message {
+  background: var(--surface);
+}
+
+.fundamentals-card {
+  margin-top: 18px;
+  padding: 22px;
+  border-radius: 22px;
+}
+
+.fundamentals-card-heading {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 2px 2px 16px;
+  border-bottom: 1px solid var(--line);
+}
+
+.fundamentals-card-heading h3 {
+  margin: 0;
+  font-size: 1.2rem;
+  font-weight: 600;
+  letter-spacing: -0.03em;
+}
+
+.fundamentals-card-heading > p {
+  margin: 0 0 2px;
+  color: var(--muted);
+  font-size: 0.72rem;
+}
+
+#fundamentals-container > .status-message {
+  margin-top: 18px;
+}
+
+.company-overview-content {
+  padding-top: 18px;
+}
+
+.company-header {
+  display: grid;
+  gap: 11px;
+}
+
+.company-header h4 {
+  margin: 0;
+  font-size: clamp(1.25rem, 2.5vw, 1.65rem);
+  letter-spacing: -0.035em;
+}
+
+.company-metadata-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  align-items: center;
+}
+
+.company-badge {
+  padding: 5px 8px;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  background: var(--surface-soft);
+  color: var(--text);
+  font-size: 0.67rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.company-badge-label {
+  color: var(--muted);
+  font-weight: 500;
+}
+
+.company-description-area {
+  max-width: 960px;
+  margin-top: 14px;
+}
+
+.company-description {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.78rem;
+  line-height: 1.65;
+}
+
+.company-description.is-collapsed {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+}
+
+.description-toggle {
+  margin-top: 7px;
+  padding: 2px 0;
+  border: 0;
+  border-bottom: 1px solid transparent;
+  background: transparent;
+  color: var(--accent);
+  cursor: pointer;
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+
+.description-toggle:hover {
+  border-bottom-color: currentColor;
+}
+
+.description-toggle:focus-visible {
+  outline: 3px solid rgba(85, 199, 146, 0.28);
+  outline-offset: 4px;
+}
+
+.fundamentals-group {
+  margin-top: 20px;
+  padding-top: 17px;
+  border-top: 1px solid var(--line);
+}
+
+.fundamentals-group h4 {
+  margin: 0 0 11px;
+  font-size: 0.84rem;
+  font-weight: 600;
+}
+
+.fundamentals-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.fundamental-metric {
+  min-width: 0;
+  padding: 12px 13px;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  background: var(--surface-soft);
+}
+
+.fundamental-label {
+  display: block;
+  margin-bottom: 6px;
+  color: var(--muted);
+  font-size: 0.62rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  line-height: 1.35;
+  text-transform: uppercase;
+}
+
+.fundamental-value {
+  display: block;
+  overflow-wrap: anywhere;
+  font-size: 0.95rem;
+  font-weight: 600;
+  letter-spacing: -0.025em;
+}
+
 .featured-header {
   display: flex;
   align-items: flex-start;
@@ -840,6 +1064,10 @@ footer p {
   .market-index-card:first-child {
     grid-column: 1 / -1;
   }
+
+  .fundamentals-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
 }
 
 @media (max-width: 720px) {
@@ -859,6 +1087,18 @@ footer p {
 
   .movers-layout {
     grid-template-columns: 1fr;
+  }
+
+  .performance-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .fundamentals-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .fundamental-metric:last-child:nth-child(odd) {
+    grid-column: 1 / -1;
   }
 
   .dashboard-section {
@@ -913,6 +1153,34 @@ footer p {
 
   .featured-card {
     padding: 18px 12px 12px;
+  }
+
+  .performance-card {
+    padding: 20px 14px;
+  }
+
+  .fundamentals-card {
+    padding: 20px 14px;
+  }
+
+  .performance-card-heading {
+    display: block;
+  }
+
+  .performance-card-heading > p {
+    margin-top: 8px;
+  }
+
+  .fundamentals-card-heading {
+    display: block;
+  }
+
+  .fundamentals-card-heading > p {
+    margin-top: 8px;
+  }
+
+  .fundamentals-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .featured-header {
