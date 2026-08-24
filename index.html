@@ -37,6 +37,20 @@
 
         <div class="nav-actions">
           <button
+            id="start-tour-button"
+            class="start-tour-button"
+            type="button"
+            aria-label="Start the StockFrame onboarding tour"
+            title="Start the onboarding tour"
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+              <path d="M6 4.5h9.5a2 2 0 0 1 2 2v13L12 16l-5.5 3.5v-13a2 2 0 0 1 2-2Z" />
+              <path d="M9.5 9.5h5" />
+            </svg>
+            <span class="start-tour-label">Start <span class="start-tour-word">Here</span></span>
+          </button>
+
+          <button
             id="learn-mode-button"
             class="learn-mode-button"
             type="button"
@@ -306,6 +320,45 @@
         This metric is one piece of a larger picture and should not be considered in isolation.
       </p>
     </dialog>
+
+    <div id="tour-layer" class="tour-layer" hidden>
+      <div class="tour-dimmer tour-dimmer-top" aria-hidden="true"></div>
+      <div class="tour-dimmer tour-dimmer-right" aria-hidden="true"></div>
+      <div class="tour-dimmer tour-dimmer-bottom" aria-hidden="true"></div>
+      <div class="tour-dimmer tour-dimmer-left" aria-hidden="true"></div>
+      <div id="tour-spotlight" class="tour-spotlight" aria-hidden="true"></div>
+
+      <section
+        id="tour-dialog"
+        class="tour-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="tour-title"
+        aria-describedby="tour-description"
+        tabindex="-1"
+      >
+        <div class="tour-dialog-header">
+          <p id="tour-progress" class="tour-progress" aria-live="polite">1 of 7</p>
+          <button id="tour-close" class="tour-close" type="button" aria-label="Close tour">
+            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+              <path d="m7 7 10 10" />
+              <path d="m17 7-10 10" />
+            </svg>
+          </button>
+        </div>
+
+        <h2 id="tour-title">Market Overview</h2>
+        <p id="tour-description"></p>
+
+        <div class="tour-controls">
+          <button id="tour-skip" class="tour-skip" type="button">Skip Tour</button>
+          <div class="tour-navigation-controls">
+            <button id="tour-back" class="tour-secondary-button" type="button">Back</button>
+            <button id="tour-next" class="tour-primary-button" type="button">Next</button>
+          </div>
+        </div>
+      </section>
+    </div>
 
     <script src="script.js"></script>
   </body>

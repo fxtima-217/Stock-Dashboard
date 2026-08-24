@@ -253,12 +253,81 @@ const learnDialogInterpretation = document.querySelector("#learn-dialog-interpre
 const learnDialogImportance = document.querySelector("#learn-dialog-importance");
 const learnDialogExample = document.querySelector("#learn-dialog-example");
 const themeButton = document.querySelector("#theme-button");
+const startTourButton = document.querySelector("#start-tour-button");
+const tourLayer = document.querySelector("#tour-layer");
+const tourDialog = document.querySelector("#tour-dialog");
+const tourSpotlight = document.querySelector("#tour-spotlight");
+const tourDimmers = {
+  top: document.querySelector(".tour-dimmer-top"),
+  right: document.querySelector(".tour-dimmer-right"),
+  bottom: document.querySelector(".tour-dimmer-bottom"),
+  left: document.querySelector(".tour-dimmer-left"),
+};
+const tourProgress = document.querySelector("#tour-progress");
+const tourTitle = document.querySelector("#tour-title");
+const tourDescription = document.querySelector("#tour-description");
+const tourCloseButton = document.querySelector("#tour-close");
+const tourSkipButton = document.querySelector("#tour-skip");
+const tourBackButton = document.querySelector("#tour-back");
+const tourNextButton = document.querySelector("#tour-next");
 const stockRequestCache = new Map();
 const performanceRequestCache = new Map();
 const fundamentalsRequestCache = new Map();
 let latestChartRequest = 0;
 let learnModeIsActive = false;
 let lastLearnTrigger = null;
+let tourIsActive = false;
+let currentTourStep = 0;
+let tourLayoutFrame = null;
+let tourTargetRetry = null;
+
+const TOUR_STEPS = [
+  {
+    title: "Market Overview",
+    description:
+      "Start with the wider market. These cards show how major stock indexes are moving, helping you understand whether markets are generally rising or falling.",
+    selector: "#markets",
+  },
+  {
+    title: "Market Movers",
+    description:
+      "Market Movers highlights some of today’s biggest gainers and losers. People use it to spot stocks experiencing unusually strong price movement.",
+    selector: "#movers",
+  },
+  {
+    title: "Search for a stock",
+    description:
+      "Enter a ticker symbol, such as AAPL or TSLA, to explore a company. A ticker is the short code used to identify a stock.",
+    selector: "#search-form",
+  },
+  {
+    title: "Price and chart",
+    description:
+      "This area shows the selected company’s latest price, daily change, and one month of price history. The chart helps you see the recent direction rather than relying on one price.",
+    selector: ".featured-card",
+  },
+  {
+    title: "Performance & Range",
+    description:
+      "These figures summarise how the stock has performed over different periods and where its price sits within its recent range.",
+    selector: ".performance-card",
+  },
+  {
+    title: "Company Fundamentals",
+    description:
+      "Fundamentals describe the underlying business, including what it does, its size, revenue, profit, and earnings. Investors use them to look beyond short-term price movement.",
+    selector: ".fundamentals-card-heading",
+    fallbackSelector: ".fundamentals-card",
+    spotlightExtraBottom: 150,
+  },
+  {
+    title: "Valuation",
+    description:
+      "Valuation metrics compare a company’s share price with measures such as earnings, sales, or book value. No single ratio tells the whole story. Explore a company next, and use Learn Mode whenever a metric is unfamiliar.",
+    selector: '[data-tour-target="valuation"]',
+    fallbackSelector: ".fundamentals-card-heading",
+  },
+];
 
 /**
  * Fetch one stock from Yahoo Finance and return only the fields the UI needs.
@@ -849,6 +918,7 @@ function renderFundamentals(fundamentals) {
       "dividendYield",
     ),
   ]);
+  valuationGroup.dataset.tourTarget = "valuation";
 
   content.append(companyHeader, descriptionArea, financialGroup, valuationGroup);
   fundamentalsContainer.replaceChildren(content);
@@ -1521,7 +1591,296 @@ async function handleSearch(event) {
   }
 }
 
+function startTour() {
+  // A native modal already owns focus while a Learn Mode explanation is open.
+  if (tourIsActive || learnDialog.open) return;
+
+  tourIsActive = true;
+  currentTourStep = 0;
+  tourLayer.hidden = false;
+  document.body.classList.add("tour-active");
+  document.addEventListener("keydown", handleTourKeydown, true);
+  window.addEventListener("resize", scheduleTourLayout);
+  window.addEventListener("scroll", scheduleTourLayout, { passive: true });
+  showTourStep({ moveFocus: true });
+}
+
+function endTour() {
+  if (!tourIsActive) return;
+
+  tourIsActive = false;
+  tourLayer.hidden = true;
+  document.body.classList.remove("tour-active");
+  document.removeEventListener("keydown", handleTourKeydown, true);
+  window.removeEventListener("resize", scheduleTourLayout);
+  window.removeEventListener("scroll", scheduleTourLayout);
+
+  if (tourLayoutFrame !== null) {
+    cancelAnimationFrame(tourLayoutFrame);
+    tourLayoutFrame = null;
+  }
+
+  if (tourTargetRetry !== null) {
+    clearTimeout(tourTargetRetry);
+    tourTargetRetry = null;
+  }
+
+  startTourButton.focus();
+}
+
+async function showTourStep({ moveFocus = false } = {}) {
+  if (!tourIsActive) return;
+
+  const stepIndex = currentTourStep;
+  const step = TOUR_STEPS[stepIndex];
+  const targetDetails = resolveTourTarget(step);
+
+  tourProgress.textContent = `${stepIndex + 1} of ${TOUR_STEPS.length}`;
+  tourTitle.textContent = step.title;
+  tourDescription.textContent =
+    targetDetails.isFallback && stepIndex === TOUR_STEPS.length - 1
+      ? `${step.description} Valuation data is currently unavailable, but it will normally appear in this part of the company overview.`
+      : step.description;
+  tourBackButton.disabled = stepIndex === 0;
+  tourNextButton.textContent = stepIndex === TOUR_STEPS.length - 1 ? "Finish" : "Next";
+
+  await scrollTourTargetIntoView(targetDetails.element);
+
+  // Ignore delayed scrolling from a step the user has already left.
+  if (!tourIsActive || currentTourStep !== stepIndex) return;
+
+  positionTour(targetDetails.element);
+
+  if (moveFocus) {
+    tourNextButton.focus();
+  }
+
+  // Fundamentals are rendered asynchronously. Re-resolve once shortly after
+  // entering either of the dynamic steps so the real valuation group can win.
+  if (stepIndex >= 5) {
+    if (tourTargetRetry !== null) clearTimeout(tourTargetRetry);
+    tourTargetRetry = setTimeout(() => refreshDynamicTourTarget(stepIndex), 700);
+  }
+}
+
+function resolveTourTarget(step) {
+  const preferredTarget = document.querySelector(step.selector);
+
+  if (preferredTarget) {
+    return { element: preferredTarget, isFallback: false };
+  }
+
+  const fallbackTarget = step.fallbackSelector
+    ? document.querySelector(step.fallbackSelector)
+    : null;
+
+  return {
+    element: fallbackTarget || document.querySelector("#chart-section") || document.body,
+    isFallback: true,
+  };
+}
+
+async function refreshDynamicTourTarget(stepIndex) {
+  tourTargetRetry = null;
+
+  if (!tourIsActive || currentTourStep !== stepIndex) return;
+
+  const targetDetails = resolveTourTarget(TOUR_STEPS[stepIndex]);
+  await scrollTourTargetIntoView(targetDetails.element);
+
+  if (!tourIsActive || currentTourStep !== stepIndex) return;
+
+  if (stepIndex === TOUR_STEPS.length - 1 && !targetDetails.isFallback) {
+    tourDescription.textContent = TOUR_STEPS[stepIndex].description;
+  }
+
+  positionTour(targetDetails.element);
+}
+
+async function scrollTourTargetIntoView(target) {
+  const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const isMobile = window.matchMedia("(max-width: 540px)").matches;
+  const behavior = reducedMotion ? "auto" : "smooth";
+  const rect = target.getBoundingClientRect();
+  const dialogHeight = tourDialog.offsetHeight;
+  const usableBottom = isMobile ? window.innerHeight - dialogHeight - 24 : window.innerHeight - 24;
+  const targetIsComfortablyVisible = rect.top >= 18 && rect.bottom <= usableBottom;
+
+  if (!targetIsComfortablyVisible) {
+    target.scrollIntoView({
+      behavior,
+      block: isMobile || rect.height > usableBottom - 36 ? "start" : "center",
+    });
+  }
+
+  if (!reducedMotion) {
+    await new Promise((resolve) => setTimeout(resolve, 320));
+  } else {
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+  }
+}
+
+function scheduleTourLayout() {
+  if (!tourIsActive || tourLayoutFrame !== null) return;
+
+  tourLayoutFrame = requestAnimationFrame(() => {
+    tourLayoutFrame = null;
+    const target = resolveTourTarget(TOUR_STEPS[currentTourStep]).element;
+    positionTour(target);
+  });
+}
+
+function positionTour(target) {
+  if (!tourIsActive || !target?.isConnected) return;
+
+  const spotlightRect = calculateSpotlightRect(target);
+  positionSpotlight(spotlightRect);
+  positionTourDialog(spotlightRect);
+}
+
+function calculateSpotlightRect(target) {
+  const targetRect = target.getBoundingClientRect();
+  const extraBottom = TOUR_STEPS[currentTourStep].spotlightExtraBottom || 0;
+  const viewportWidth = window.innerWidth;
+  const viewportHeight = window.innerHeight;
+  const isMobile = window.matchMedia("(max-width: 540px)").matches;
+  const padding = 10;
+  const dialogAllowance = isMobile ? tourDialog.offsetHeight + 28 : 0;
+  const usableHeight = Math.max(130, viewportHeight - dialogAllowance - 16);
+  const maximumHeight = Math.min(usableHeight, viewportHeight * (isMobile ? 0.5 : 0.64));
+  const width = Math.min(targetRect.width + padding * 2, viewportWidth - 16);
+  const height = Math.min(targetRect.height + padding * 2 + extraBottom, maximumHeight);
+  const left = Math.max(8, Math.min(targetRect.left - padding, viewportWidth - width - 8));
+  const topLimit = isMobile ? Math.max(8, viewportHeight - dialogAllowance - height - 8) : viewportHeight - height - 8;
+  const top = Math.max(8, Math.min(targetRect.top - padding, topLimit));
+
+  return { top, left, width, height, right: left + width, bottom: top + height };
+}
+
+function positionSpotlight(rect) {
+  Object.assign(tourSpotlight.style, {
+    top: `${rect.top}px`,
+    left: `${rect.left}px`,
+    width: `${rect.width}px`,
+    height: `${rect.height}px`,
+  });
+
+  setTourDimmerRect(tourDimmers.top, 0, 0, window.innerWidth, rect.top);
+  setTourDimmerRect(
+    tourDimmers.right,
+    rect.right,
+    rect.top,
+    window.innerWidth - rect.right,
+    rect.height,
+  );
+  setTourDimmerRect(
+    tourDimmers.bottom,
+    0,
+    rect.bottom,
+    window.innerWidth,
+    window.innerHeight - rect.bottom,
+  );
+  setTourDimmerRect(tourDimmers.left, 0, rect.top, rect.left, rect.height);
+}
+
+function setTourDimmerRect(element, left, top, width, height) {
+  Object.assign(element.style, {
+    left: `${Math.max(0, left)}px`,
+    top: `${Math.max(0, top)}px`,
+    width: `${Math.max(0, width)}px`,
+    height: `${Math.max(0, height)}px`,
+  });
+}
+
+function positionTourDialog(targetRect) {
+  if (window.matchMedia("(max-width: 540px)").matches) {
+    tourDialog.style.removeProperty("top");
+    tourDialog.style.removeProperty("left");
+    return;
+  }
+
+  const margin = 16;
+  const gap = 18;
+  const dialogWidth = tourDialog.offsetWidth;
+  const dialogHeight = tourDialog.offsetHeight;
+  const viewportWidth = window.innerWidth;
+  const viewportHeight = window.innerHeight;
+  let left;
+  let top;
+
+  if (targetRect.right + gap + dialogWidth <= viewportWidth - margin) {
+    left = targetRect.right + gap;
+    top = targetRect.top;
+  } else if (targetRect.left - gap - dialogWidth >= margin) {
+    left = targetRect.left - gap - dialogWidth;
+    top = targetRect.top;
+  } else if (targetRect.bottom + gap + dialogHeight <= viewportHeight - margin) {
+    left = targetRect.left;
+    top = targetRect.bottom + gap;
+  } else {
+    left = targetRect.left;
+    top = targetRect.top - gap - dialogHeight;
+  }
+
+  left = Math.max(margin, Math.min(left, viewportWidth - dialogWidth - margin));
+  top = Math.max(margin, Math.min(top, viewportHeight - dialogHeight - margin));
+  tourDialog.style.left = `${left}px`;
+  tourDialog.style.top = `${top}px`;
+}
+
+function handleTourKeydown(event) {
+  if (!tourIsActive) return;
+
+  if (event.key === "Escape") {
+    event.preventDefault();
+    endTour();
+    return;
+  }
+
+  if (event.key !== "Tab") return;
+
+  const focusableControls = Array.from(
+    tourDialog.querySelectorAll("button:not(:disabled)"),
+  );
+  const firstControl = focusableControls[0];
+  const lastControl = focusableControls[focusableControls.length - 1];
+
+  if (event.shiftKey && document.activeElement === firstControl) {
+    event.preventDefault();
+    lastControl.focus();
+  } else if (!event.shiftKey && document.activeElement === lastControl) {
+    event.preventDefault();
+    firstControl.focus();
+  } else if (!tourDialog.contains(document.activeElement)) {
+    event.preventDefault();
+    firstControl.focus();
+  }
+}
+
+function showPreviousTourStep() {
+  if (!tourIsActive || currentTourStep === 0) return;
+  currentTourStep -= 1;
+  showTourStep();
+}
+
+function showNextTourStep() {
+  if (!tourIsActive) return;
+
+  if (currentTourStep === TOUR_STEPS.length - 1) {
+    endTour();
+    return;
+  }
+
+  currentTourStep += 1;
+  showTourStep();
+}
+
 searchForm.addEventListener("submit", handleSearch);
+startTourButton.addEventListener("click", startTour);
+tourCloseButton.addEventListener("click", endTour);
+tourSkipButton.addEventListener("click", endTour);
+tourBackButton.addEventListener("click", showPreviousTourStep);
+tourNextButton.addEventListener("click", showNextTourStep);
 learnModeButton.addEventListener("click", toggleLearnMode);
 learnDialogClose.addEventListener("click", closeLearnDialog);
 learnDialog.addEventListener("close", restoreLearnTriggerFocus);
